@@ -20,10 +20,7 @@ async function connectDB() {
       throw new Error('MONGODB_URI 环境变量未设置');
     }
     try {
-      client = new MongoClient(uri, {
-        serverSelectionTimeoutMS: 5000,
-        connectTimeoutMS: 5000
-      });
+      client = new MongoClient(uri);
       await client.connect();
       db = client.db('warehouse');
       dbConnected = true;
