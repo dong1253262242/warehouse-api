@@ -4,7 +4,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
 // MongoDB 连接
-const uri = process.env.MONGODB_URI || 'mongodb+srv://username:password@cluster.mongodb.net/warehouse';
+const uri = process.env.MONGODB_URI;
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-this';
 
 // 是否启用公共数据模式（无需登录，所有用户共享数据）
@@ -15,6 +15,9 @@ let db = null;
 
 async function connectDB() {
   if (!client) {
+    if (!uri) {
+      throw new Error('MONGODB_URI 环境变量未设置');
+    }
     client = new MongoClient(uri);
     await client.connect();
     db = client.db('warehouse');
@@ -29,6 +32,24 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
   'Content-Type': 'application/json'
 };
+
+// 解析请求体
+function parseBody(req) {
+  return new Promise((resolve, reject) => {
+    let body = '';
+    req.on('data', chunk => {
+      body += chunk.toString();
+    });
+    req.on('end', () => {
+      try {
+        resolve(body ? JSON.parse(body) : {});
+      } catch (e) {
+        resolve({});
+      }
+    });
+    req.on('error', reject);
+  });
+}
 
 // 验证 Token
 function verifyToken(authHeader) {
@@ -75,9 +96,24 @@ module.exports = async (req, res) => {
   const method = req.method;
 
   try {
+    // 健康检查接口
+    if (url === '/api/health' && method === 'GET') {
+      res.writeHead(200, corsHeaders);
+      res.end(JSON.stringify({ 
+        success: true,
+        message: '服务正常运行',
+        time: new Date().toISOString(),
+        mongodbConfigured: !!uri
+      }));
+      return;
+    }
+
     await connectDB();
     const users = db.collection('users');
     const publicData = db.collection('publicData');
+
+    // 解析请求体
+    const body = await parseBody(req);
 
     // 公共数据模式：获取数据（无需认证）
     if (PUBLIC_DATA_MODE && url === '/api/data' && method === 'GET') {
@@ -93,7 +129,7 @@ module.exports = async (req, res) => {
 
     // 公共数据模式：同步数据（无需认证）
     if (PUBLIC_DATA_MODE && url === '/api/sync' && method === 'POST') {
-      const { data } = req.body;
+      const { data } = body;
       if (!data) {
         res.writeHead(400, corsHeaders);
         res.end(JSON.stringify({ error: '数据不能为空' }));
@@ -122,7 +158,7 @@ module.exports = async (req, res) => {
 
     // 注册
     if (url === '/api/register' && method === 'POST') {
-      const { username, password } = req.body;
+      const { username, password } = body;
       
       if (!username || !password) {
         res.writeHead(400, corsHeaders);
@@ -162,7 +198,7 @@ module.exports = async (req, res) => {
 
     // 登录
     if (url === '/api/login' && method === 'POST') {
-      const { username, password } = req.body;
+      const { username, password } = body;
       
       if (!username || !password) {
         res.writeHead(400, corsHeaders);
@@ -222,7 +258,7 @@ module.exports = async (req, res) => {
         return;
       }
 
-      const { data } = req.body;
+      const { data } = body;
       if (!data) {
         res.writeHead(400, corsHeaders);
         res.end(JSON.stringify({ error: '数据不能为空' }));
@@ -250,11 +286,15 @@ module.exports = async (req, res) => {
 
     // 404
     res.writeHead(404, corsHeaders);
-    res.end(JSON.stringify({ error: '接口不存在' }));
+    res.end(JSON.stringify({ error: '接口不存在', url, method }));
 
   } catch (error) {
     console.error('Error:', error);
     res.writeHead(500, corsHeaders);
-    res.end(JSON.stringify({ error: '服务器错误', message: error.message }));
+    res.end(JSON.stringify({ 
+      error: '服务器错误', 
+      message: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    }));
   }
 };
