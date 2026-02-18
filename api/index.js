@@ -32,14 +32,20 @@ async function connectDB() {
   return db;
 }
 
-// CORS 头
-const corsHeaders = {
-  'Access-Control-Allow-Credentials': 'true',
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET,OPTIONS,PATCH,DELETE,POST,PUT',
-  'Access-Control-Allow-Headers': 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization',
-  'Content-Type': 'application/json'
-};
+// 发送响应 - 包含完整的 CORS 头
+function sendResponse(res, statusCode, data) {
+  const headers = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With',
+    'Access-Control-Max-Age': '86400',
+    'Content-Type': 'application/json; charset=utf-8',
+    'Cache-Control': 'no-cache'
+  };
+  
+  res.writeHead(statusCode, headers);
+  res.end(JSON.stringify(data));
+}
 
 // 解析请求体
 function parseBody(req) {
@@ -91,12 +97,6 @@ async function getPublicData() {
   return data;
 }
 
-// 发送响应
-function sendResponse(res, statusCode, data) {
-  res.writeHead(statusCode, corsHeaders);
-  res.end(JSON.stringify(data));
-}
-
 // 主处理函数
 module.exports = async (req, res) => {
   // 处理 CORS 预检请求
@@ -128,7 +128,8 @@ module.exports = async (req, res) => {
         message: 'API 测试成功',
         url: url,
         method: method,
-        time: new Date().toISOString()
+        time: new Date().toISOString(),
+        userAgent: req.headers['user-agent'] || 'unknown'
       });
       return;
     }

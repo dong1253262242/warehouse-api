@@ -1005,9 +1005,9 @@
             <div style="font-weight:600;color:#1976d2;margin-bottom:10px;">📋 如何导入数据？</div>
             <div style="font-size:13px;color:#333;line-height:1.8;">
                 1. 从其他手机复制"商品总量明细"数据<br>
-                2. 点击下方"导入数据"按钮<br>
-                3. 确认导入的商品列表<br>
-                4. 点击"确认导入"完成
+                2. 长按下方输入框粘贴数据<br>
+                3. 点击"解析数据"按钮<br>
+                4. 确认导入的商品列表
             </div>
         </div>
         
@@ -1155,7 +1155,7 @@ function sortGoodsList(list) {
 // ==================== 云同步配置 ====================
 // 后端API地址，部署后需要修改为实际的Vercel地址
 // 本地测试时可以使用: http://localhost:3000/api
-const API_BASE = 'https://warehouse-319wi4nhs-dongs-projects-7faae8a3.vercel.app/api';
+const API_BASE = 'https://warehouse-api-five.vercel.app/api';
 
 // 是否启用云端同步（ false 时使用本地模式 ）
 const ENABLE_CLOUD_SYNC = true;
@@ -4331,7 +4331,7 @@ function showGoodsExportDialog() {
   if (goodsList.length === 0) {
     return alert('暂无商品可导出');
   }
-  
+
   // 获取所有主类型及其商品数量
   const mainTypeStats = {};
   goodsList.forEach(g => {
@@ -4340,7 +4340,7 @@ function showGoodsExportDialog() {
     }
     mainTypeStats[g.mainType]++;
   });
-  
+
   // 按预设顺序排序主类型
   const sortedTypes = Object.keys(mainTypeStats).sort((a, b) => {
     const indexA = mainTypeOrder.indexOf(a);
@@ -4350,28 +4350,28 @@ function showGoodsExportDialog() {
     if (indexB === -1) return -1;
     return indexA - indexB;
   });
-  
+
   let html = `
     <div style="padding: 20px; max-height: 70vh; overflow-y: auto;">
       <h3 style="margin-bottom: 20px; font-size: 18px; text-align: center;">选择要导出的商品</h3>
-      
+
       <!-- 全选选项 -->
-      <div style="margin-bottom: 15px; padding: 15px; background: #e8f5e9; border: 2px solid #4caf50; border-radius: 8px; cursor: pointer;" onclick="toggleAllGoodsExport(this)">
-        <label style="display: flex; align-items: center; cursor: pointer;">
-          <input type="checkbox" id="exportAllGoods" style="width: 20px; height: 20px; margin-right: 12px;" checked>
+      <div id="exportAllGoodsContainer" style="margin-bottom: 15px; padding: 15px; background: #e8f5e9; border: 2px solid #4caf50; border-radius: 8px; cursor: pointer;" onclick="toggleAllGoodsExport()">
+        <div style="display: flex; align-items: center;">
+          <input type="checkbox" id="exportAllGoods" style="width: 20px; height: 20px; margin-right: 12px; pointer-events: none;" checked>
           <div>
             <div style="font-weight: bold; font-size: 16px; color: #2e7d32;">📦 全部商品</div>
             <div style="font-size: 13px; color: #666; margin-top: 4px;">共 ${goodsList.length} 种商品</div>
           </div>
-        </label>
+        </div>
       </div>
-      
+
       <div style="font-size: 14px; color: #666; margin: 15px 0 10px; font-weight: 600;">按主类型选择：</div>
-      
+
       <!-- 各主类型选项 -->
       <div style="display: flex; flex-direction: column; gap: 10px;">
   `;
-  
+
   sortedTypes.forEach((type, index) => {
     const count = mainTypeStats[type];
     const colors = {
@@ -4392,65 +4392,72 @@ function showGoodsExportDialog() {
     };
     const bgColor = colors[type] || '#f5f5f5';
     const borderColor = borderColors[type] || '#666';
-    
+
     html += `
-      <div class="export-type-item" style="padding: 12px; background: ${bgColor}; border: 2px solid ${borderColor}; border-radius: 8px; cursor: pointer;" onclick="toggleTypeExport(this, '${type}')">
-        <label style="display: flex; align-items: center; cursor: pointer; width: 100%;">
-          <input type="checkbox" class="export-type-checkbox" data-type="${type}" style="width: 18px; height: 18px; margin-right: 10px;" checked>
+      <div class="export-type-item" data-type="${type}" style="padding: 12px; background: ${bgColor}; border: 2px solid ${borderColor}; border-radius: 8px; cursor: pointer;" onclick="toggleTypeExport('${type}')">
+        <div style="display: flex; align-items: center; width: 100%;">
+          <input type="checkbox" class="export-type-checkbox" data-type="${type}" style="width: 18px; height: 18px; margin-right: 10px; pointer-events: none;" checked>
           <div style="flex: 1;">
             <div style="font-weight: bold; font-size: 15px; color: #333;">${type}</div>
             <div style="font-size: 12px; color: #666; margin-top: 2px;">${count} 种商品</div>
           </div>
-        </label>
+        </div>
       </div>
     `;
   });
-  
+
   html += `
       </div>
-      
+
       <div style="margin-top: 20px; display: flex; gap: 10px;">
         <button onclick="closeModal()" style="flex: 1; padding: 12px; background: #f5f5f5; border: 2px solid #999; border-radius: 6px; cursor: pointer; font-size: 15px;">取消</button>
         <button onclick="confirmGoodsExport()" style="flex: 1; padding: 12px; background: #4caf50; color: white; border: 2px solid #4caf50; border-radius: 6px; cursor: pointer; font-size: 15px; font-weight: bold;">确认导出</button>
       </div>
     </div>
   `;
-  
+
   showModal('导出商品总量明细', html);
 }
 
 // 切换全选状态
-function toggleAllGoodsExport(container) {
-  const checkbox = container.querySelector('input[type="checkbox"]');
-  checkbox.checked = !checkbox.checked;
-  
+function toggleAllGoodsExport() {
+  const checkbox = document.getElementById('exportAllGoods');
+  const newChecked = !checkbox.checked;
+  checkbox.checked = newChecked;
+
   // 同步所有类型复选框
   document.querySelectorAll('.export-type-checkbox').forEach(cb => {
-    cb.checked = checkbox.checked;
-    updateTypeItemStyle(cb.closest('.export-type-item'), checkbox.checked);
+    cb.checked = newChecked;
+    updateTypeItemStyle(cb.closest('.export-type-item'), newChecked);
   });
-  
-  updateAllGoodsStyle(container, checkbox.checked);
+
+  updateAllGoodsStyle(document.getElementById('exportAllGoodsContainer'), newChecked);
 }
 
 // 切换类型选择状态
-function toggleTypeExport(container, type) {
-  const checkbox = container.querySelector('input[type="checkbox"]');
-  checkbox.checked = !checkbox.checked;
-  updateTypeItemStyle(container, checkbox.checked);
-  
+function toggleTypeExport(type) {
+  const container = document.querySelector('.export-type-item[data-type="' + type + '"]');
+  const checkbox = container.querySelector('.export-type-checkbox');
+  const newChecked = !checkbox.checked;
+  checkbox.checked = newChecked;
+  updateTypeItemStyle(container, newChecked);
+
   // 检查是否所有类型都选中/未选中，更新全选状态
   const allTypeCheckboxes = document.querySelectorAll('.export-type-checkbox');
   const allChecked = Array.from(allTypeCheckboxes).every(cb => cb.checked);
   const noneChecked = Array.from(allTypeCheckboxes).every(cb => !cb.checked);
-  
+
   const allGoodsCheckbox = document.getElementById('exportAllGoods');
-  const allGoodsContainer = allGoodsCheckbox.closest('div');
-  
+  const allGoodsContainer = document.getElementById('exportAllGoodsContainer');
+
   if (allChecked) {
     allGoodsCheckbox.checked = true;
     updateAllGoodsStyle(allGoodsContainer, true);
   } else if (noneChecked) {
+    allGoodsCheckbox.checked = false;
+    updateAllGoodsStyle(allGoodsContainer, false);
+  } else {
+    // 部分选中时，全选框不勾选
     allGoodsCheckbox.checked = false;
     updateAllGoodsStyle(allGoodsContainer, false);
   }
@@ -4693,36 +4700,188 @@ $('importTypeFile').onchange = (e) => {
   reader.readAsText(file);
 };
 
-// 导入数据
-$('importDataBtn').onclick = () => {
-  $('importDataFile').click();
-};
+// 显示导入数据对话框
+function showImportDataDialog() {
+  const html = `
+    <div style="padding: 20px; max-height: 80vh; overflow-y: auto;">
+      <!-- 如何导入数据说明 -->
+      <div style="background: #e3f2fd; border: 1px solid #2196f3; border-radius: 8px; padding: 15px; margin-bottom: 20px;">
+        <div style="display: flex; align-items: center; margin-bottom: 10px;">
+          <span style="width: 20px; height: 20px; background: #2196f3; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; margin-right: 8px;">i</span>
+          <span style="font-weight: 600; color: #1976d2;">如何导入数据？</span>
+        </div>
+        <div style="font-size: 13px; color: #333; line-height: 1.8; padding-left: 28px;">
+          1. 从其他手机复制"商品总量明细"数据<br>
+          2. 长按下方输入框粘贴数据<br>
+          3. 点击"解析数据"按钮<br>
+          4. 确认导入的商品列表
+        </div>
+      </div>
 
-$('importDataFile').onchange = (e) => {
-  const file = e.target.files[0];
-  if (!file) return;
-  
-  const reader = new FileReader();
-  reader.onload = (event) => {
+      <!-- 粘贴数据区域 -->
+      <div style="margin-bottom: 20px;">
+        <div style="font-weight: 600; font-size: 15px; color: #333; margin-bottom: 10px;">粘贴数据</div>
+        <textarea id="importDataTextarea" placeholder="请在此处粘贴从其他手机复制的数据..." style="width: 100%; min-height: 150px; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px; resize: vertical; box-sizing: border-box;"></textarea>
+      </div>
+
+      <!-- 按钮组 -->
+      <div style="display: flex; gap: 10px;">
+        <button onclick="closeModal()" style="flex: 1; padding: 12px; background: #f5f5f5; border: 2px solid #999; border-radius: 6px; cursor: pointer; font-size: 15px; font-weight: 600;">取消</button>
+        <button onclick="parseImportData()" style="flex: 1; padding: 12px; background: #1976d2; color: white; border: 2px solid #1976d2; border-radius: 6px; cursor: pointer; font-size: 15px; font-weight: 600;">解析数据</button>
+      </div>
+    </div>
+  `;
+  showModal('导入数据', html);
+}
+
+// 解析导入的数据
+function parseImportData() {
+  const textarea = document.getElementById('importDataTextarea');
+  const content = textarea ? textarea.value.trim() : '';
+
+  if (!content) {
+    alert('请粘贴数据后再点击解析');
+    return;
+  }
+
+  try {
+    // 尝试解析JSON格式
+    let data = null;
     try {
-      const data = JSON.parse(event.target.result);
-      if (Array.isArray(data)) {
-        if (confirm(`确定要导入商品数据吗？\n包含 ${data.length} 条商品记录`)) {
-          goodsList = data;
-          saveData();
-          renderGoodsList();
-          updateImportExportStats();
-          alert('商品数据导入成功');
-        }
-      } else {
-        alert('文件格式不正确');
-      }
-    } catch (err) {
-      alert('文件解析失败：' + err.message);
+      data = JSON.parse(content);
+    } catch (e) {
+      // 如果不是JSON，尝试解析文本格式
+      data = parseTextToGoodsList(content);
     }
-    $('importDataFile').value = '';
-  };
-  reader.readAsText(file);
+
+    if (!Array.isArray(data) || data.length === 0) {
+      alert('未能识别有效的商品数据，请检查粘贴内容');
+      return;
+    }
+
+    // 显示确认对话框
+    showImportConfirmDialog(data);
+  } catch (err) {
+    alert('数据解析失败：' + err.message);
+  }
+}
+
+// 将文本解析为商品列表
+function parseTextToGoodsList(text) {
+  const lines = text.split('\n').filter(line => line.trim());
+  const goods = [];
+
+  lines.forEach(line => {
+    // 尝试匹配常见的商品数据格式
+    // 格式1: 名称,数量,单位,类型,子类型,单价,预警值,时间,预警天数
+    const parts = line.split(/[,，\t]/).map(p => p.trim());
+
+    if (parts.length >= 2 && parts[0]) {
+      const item = {
+        name: parts[0],
+        qty: parseFloat(parts[1]) || 0,
+        singleUnit: parts[2] || '个',
+        mainType: parts[3] || '原材料',
+        subType: parts[4] || '',
+        price: parseFloat(parts[5]) || 0,
+        warnThreshold: parseInt(parts[6]) || 1,
+        stockTime: parts[7] || new Date().toISOString().split('T')[0],
+        spec: ''
+      };
+      goods.push(item);
+    }
+  });
+
+  return goods;
+}
+
+// 显示导入确认对话框
+function showImportConfirmDialog(data) {
+  let html = `
+    <div style="padding: 20px; max-height: 70vh; overflow-y: auto;">
+      <div style="font-weight: 600; font-size: 16px; color: #333; margin-bottom: 15px; text-align: center;">
+        确认导入以下商品？
+      </div>
+      <div style="font-size: 14px; color: #666; margin-bottom: 15px; text-align: center;">
+        共 ${data.length} 条商品记录
+      </div>
+      <div style="max-height: 300px; overflow-y: auto; border: 1px solid #e0e0e0; border-radius: 8px; margin-bottom: 20px;">
+  `;
+
+  data.forEach((item, index) => {
+    const typeText = item.subType ? `${item.mainType} > ${item.subType}` : item.mainType;
+    html += `
+      <div style="padding: 10px 12px; border-bottom: 1px solid #f0f0f0; ${index % 2 === 0 ? 'background: #fafafa;' : 'background: #fff;'}">
+        <div style="font-weight: 600; color: #333;">${item.name}</div>
+        <div style="font-size: 12px; color: #666; margin-top: 4px;">
+          ${typeText} | 数量: ${item.qty} ${item.singleUnit} | 单价: ¥${item.price || 0}
+        </div>
+      </div>
+    `;
+  });
+
+  html += `
+      </div>
+      <div style="display: flex; gap: 10px;">
+        <button onclick="closeModal(); showImportDataDialog();" style="flex: 1; padding: 12px; background: #f5f5f5; border: 2px solid #999; border-radius: 6px; cursor: pointer; font-size: 15px; font-weight: 600;">返回修改</button>
+        <button onclick="confirmImportGoods(${JSON.stringify(data).replace(/"/g, '&quot;')})" style="flex: 1; padding: 12px; background: #4caf50; color: white; border: 2px solid #4caf50; border-radius: 6px; cursor: pointer; font-size: 15px; font-weight: 600;">确认导入</button>
+      </div>
+    </div>
+  `;
+
+  showModal('确认导入', html);
+}
+
+// 确认导入商品
+function confirmImportGoods(data) {
+  try {
+    // 解析数据（如果是字符串）
+    const goodsData = typeof data === 'string' ? JSON.parse(data) : data;
+
+    // 合并导入的数据，避免重复
+    let addedCount = 0;
+    let duplicateCount = 0;
+
+    goodsData.forEach(item => {
+      // 检查是否已存在相同名称和类型的商品
+      const exists = goodsList.find(g =>
+        g.name === item.name &&
+        g.mainType === item.mainType &&
+        g.subType === item.subType
+      );
+
+      if (!exists) {
+        goodsList.push({
+          ...item,
+          unitText: item.singleUnit || '个',
+          unitRate: 1,
+          warnDate: '',
+          stockInWarnDays: null
+        });
+        addedCount++;
+      } else {
+        duplicateCount++;
+      }
+    });
+
+    saveData();
+    renderGoodsList();
+    updateImportExportStats();
+
+    let msg = `导入成功！\n新增商品：${addedCount} 条`;
+    if (duplicateCount > 0) {
+      msg += `\n跳过重复：${duplicateCount} 条`;
+    }
+    alert(msg);
+    closeModal();
+  } catch (err) {
+    alert('导入失败：' + err.message);
+  }
+}
+
+// 导入数据按钮事件
+$('importDataBtn').onclick = () => {
+  showImportDataDialog();
 };
 
 // 设置预警日期
