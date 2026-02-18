@@ -34,9 +34,10 @@ async function connectDB() {
 
 // CORS 头
 const corsHeaders = {
+  'Access-Control-Allow-Credentials': 'true',
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  'Access-Control-Allow-Methods': 'GET,OPTIONS,PATCH,DELETE,POST,PUT',
+  'Access-Control-Allow-Headers': 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization',
   'Content-Type': 'application/json'
 };
 
@@ -90,12 +91,17 @@ async function getPublicData() {
   return data;
 }
 
+// 发送响应
+function sendResponse(res, statusCode, data) {
+  res.writeHead(statusCode, corsHeaders);
+  res.end(JSON.stringify(data));
+}
+
 // 主处理函数
 module.exports = async (req, res) => {
-  // 处理 CORS 预检
+  // 处理 CORS 预检请求
   if (req.method === 'OPTIONS') {
-    res.writeHead(200, corsHeaders);
-    res.end();
+    sendResponse(res, 200, { success: true });
     return;
   }
 
@@ -105,37 +111,34 @@ module.exports = async (req, res) => {
   try {
     // 健康检查接口 - 不需要数据库
     if (url === '/api/health' && method === 'GET') {
-      res.writeHead(200, corsHeaders);
-      res.end(JSON.stringify({ 
+      sendResponse(res, 200, { 
         success: true,
         message: '服务正常运行',
         time: new Date().toISOString(),
         mongodbConfigured: !!uri,
         mongodbConnected: dbConnected
-      }));
+      });
       return;
     }
 
     // 测试接口 - 不需要数据库
     if (url === '/api/test' && method === 'GET') {
-      res.writeHead(200, corsHeaders);
-      res.end(JSON.stringify({ 
+      sendResponse(res, 200, { 
         success: true,
         message: 'API 测试成功',
         url: url,
         method: method,
         time: new Date().toISOString()
-      }));
+      });
       return;
     }
 
     // 检查 MongoDB 是否配置
     if (!uri) {
-      res.writeHead(500, corsHeaders);
-      res.end(JSON.stringify({ 
+      sendResponse(res, 500, { 
         error: '服务器配置错误',
         message: 'MONGODB_URI 环境变量未设置，请在 Vercel 设置中添加数据库连接字符串'
-      }));
+      });
       return;
     }
 
@@ -149,12 +152,11 @@ module.exports = async (req, res) => {
     // 公共数据模式：获取数据（无需认证）
     if (PUBLIC_DATA_MODE && url === '/api/data' && method === 'GET') {
       const data = await getPublicData();
-      res.writeHead(200, corsHeaders);
-      res.end(JSON.stringify({ 
+      sendResponse(res, 200, { 
         success: true,
         data: data.data,
         lastSync: data.lastSync
-      }));
+      });
       return;
     }
 
@@ -162,8 +164,7 @@ module.exports = async (req, res) => {
     if (PUBLIC_DATA_MODE && url === '/api/sync' && method === 'POST') {
       const { data } = body;
       if (!data) {
-        res.writeHead(400, corsHeaders);
-        res.end(JSON.stringify({ error: '数据不能为空' }));
+        sendResponse(res, 400, { error: '数据不能为空' });
         return;
       }
 
@@ -178,12 +179,11 @@ module.exports = async (req, res) => {
         { upsert: true }
       );
 
-      res.writeHead(200, corsHeaders);
-      res.end(JSON.stringify({ 
+      sendResponse(res, 200, { 
         success: true,
         message: '同步成功',
         syncTime: new Date()
-      }));
+      });
       return;
     }
 
@@ -192,15 +192,13 @@ module.exports = async (req, res) => {
       const { username, password } = body;
       
       if (!username || !password) {
-        res.writeHead(400, corsHeaders);
-        res.end(JSON.stringify({ error: '账号和密码不能为空' }));
+        sendResponse(res, 400, { error: '账号和密码不能为空' });
         return;
       }
 
       const existing = await users.findOne({ username });
       if (existing) {
-        res.writeHead(409, corsHeaders);
-        res.end(JSON.stringify({ error: '账号已存在' }));
+        sendResponse(res, 409, { error: '账号已存在' });
         return;
       }
 
@@ -218,12 +216,11 @@ module.exports = async (req, res) => {
       });
 
       const token = jwt.sign({ userId: result.insertedId.toString() }, JWT_SECRET);
-      res.writeHead(201, corsHeaders);
-      res.end(JSON.stringify({ 
+      sendResponse(res, 201, { 
         success: true, 
         token,
         message: '注册成功'
-      }));
+      });
       return;
     }
 
@@ -232,26 +229,23 @@ module.exports = async (req, res) => {
       const { username, password } = body;
       
       if (!username || !password) {
-        res.writeHead(400, corsHeaders);
-        res.end(JSON.stringify({ error: '账号和密码不能为空' }));
+        sendResponse(res, 400, { error: '账号和密码不能为空' });
         return;
       }
 
       const user = await users.findOne({ username });
       if (!user || !await bcrypt.compare(password, user.password)) {
-        res.writeHead(401, corsHeaders);
-        res.end(JSON.stringify({ error: '账号或密码错误' }));
+        sendResponse(res, 401, { error: '账号或密码错误' });
         return;
       }
 
       const token = jwt.sign({ userId: user._id.toString() }, JWT_SECRET);
-      res.writeHead(200, corsHeaders);
-      res.end(JSON.stringify({ 
+      sendResponse(res, 200, { 
         success: true, 
         token,
         data: user.data,
         message: '登录成功'
-      }));
+      });
       return;
     }
 
@@ -259,24 +253,21 @@ module.exports = async (req, res) => {
     if (url === '/api/data' && method === 'GET') {
       const decoded = verifyToken(req.headers.authorization);
       if (!decoded) {
-        res.writeHead(401, corsHeaders);
-        res.end(JSON.stringify({ error: '未登录或登录已过期' }));
+        sendResponse(res, 401, { error: '未登录或登录已过期' });
         return;
       }
 
       const user = await users.findOne({ _id: new ObjectId(decoded.userId) });
       if (!user) {
-        res.writeHead(404, corsHeaders);
-        res.end(JSON.stringify({ error: '用户不存在' }));
+        sendResponse(res, 404, { error: '用户不存在' });
         return;
       }
 
-      res.writeHead(200, corsHeaders);
-      res.end(JSON.stringify({ 
+      sendResponse(res, 200, { 
         success: true,
         data: user.data,
         lastSync: user.lastSync
-      }));
+      });
       return;
     }
 
@@ -284,15 +275,13 @@ module.exports = async (req, res) => {
     if (url === '/api/sync' && method === 'POST') {
       const decoded = verifyToken(req.headers.authorization);
       if (!decoded) {
-        res.writeHead(401, corsHeaders);
-        res.end(JSON.stringify({ error: '未登录或登录已过期' }));
+        sendResponse(res, 401, { error: '未登录或登录已过期' });
         return;
       }
 
       const { data } = body;
       if (!data) {
-        res.writeHead(400, corsHeaders);
-        res.end(JSON.stringify({ error: '数据不能为空' }));
+        sendResponse(res, 400, { error: '数据不能为空' });
         return;
       }
 
@@ -306,25 +295,22 @@ module.exports = async (req, res) => {
         }
       );
 
-      res.writeHead(200, corsHeaders);
-      res.end(JSON.stringify({ 
+      sendResponse(res, 200, { 
         success: true,
         message: '同步成功',
         syncTime: new Date()
-      }));
+      });
       return;
     }
 
     // 404
-    res.writeHead(404, corsHeaders);
-    res.end(JSON.stringify({ error: '接口不存在', url, method }));
+    sendResponse(res, 404, { error: '接口不存在', url, method });
 
   } catch (error) {
     console.error('Error:', error);
-    res.writeHead(500, corsHeaders);
-    res.end(JSON.stringify({ 
+    sendResponse(res, 500, { 
       error: '服务器错误', 
       message: error.message
-    }));
+    });
   }
 };
