@@ -12,15 +12,25 @@ const PUBLIC_DATA_MODE = true;
 
 let client = null;
 let db = null;
+let dbConnected = false;
 
 async function connectDB() {
   if (!client) {
     if (!uri) {
       throw new Error('MONGODB_URI 环境变量未设置');
     }
-    client = new MongoClient(uri);
-    await client.connect();
-    db = client.db('warehouse');
+    try {
+      client = new MongoClient(uri, {
+        serverSelectionTimeoutMS: 5000,
+        connectTimeoutMS: 5000
+      });
+      await client.connect();
+      db = client.db('warehouse');
+      dbConnected = true;
+    } catch (err) {
+      console.error('MongoDB 连接失败:', err.message);
+      throw new Error('数据库连接失败: ' + err.message);
+    }
   }
   return db;
 }
@@ -96,14 +106,38 @@ module.exports = async (req, res) => {
   const method = req.method;
 
   try {
-    // 健康检查接口
+    // 健康检查接口 - 不需要数据库
     if (url === '/api/health' && method === 'GET') {
       res.writeHead(200, corsHeaders);
       res.end(JSON.stringify({ 
         success: true,
         message: '服务正常运行',
         time: new Date().toISOString(),
-        mongodbConfigured: !!uri
+        mongodbConfigured: !!uri,
+        mongodbConnected: dbConnected
+      }));
+      return;
+    }
+
+    // 测试接口 - 不需要数据库
+    if (url === '/api/test' && method === 'GET') {
+      res.writeHead(200, corsHeaders);
+      res.end(JSON.stringify({ 
+        success: true,
+        message: 'API 测试成功',
+        url: url,
+        method: method,
+        time: new Date().toISOString()
+      }));
+      return;
+    }
+
+    // 检查 MongoDB 是否配置
+    if (!uri) {
+      res.writeHead(500, corsHeaders);
+      res.end(JSON.stringify({ 
+        error: '服务器配置错误',
+        message: 'MONGODB_URI 环境变量未设置，请在 Vercel 设置中添加数据库连接字符串'
       }));
       return;
     }
@@ -293,8 +327,7 @@ module.exports = async (req, res) => {
     res.writeHead(500, corsHeaders);
     res.end(JSON.stringify({ 
       error: '服务器错误', 
-      message: error.message,
-      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      message: error.message
     }));
   }
 };
